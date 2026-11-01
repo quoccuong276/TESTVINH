@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo đầu tư chứng khoán</title>
+<style>
+  :root { --bg:#fff; --card:#f6f6f4; --fg:#1f1f1d; --mute:#6b6b66; --line:#e2e2dd; --pos:#1D9E75; --neg:#D85A30; --blue:#378ADD; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --card:#222221; --fg:#ececea; --mute:#9a9a94; --line:#33332f; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:28px 0 10px; }
+  .sub { color:var(--mute); font-size:13px; }
+  nav { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 8px; }
+  nav button { background:var(--card); color:var(--fg); border:1px solid var(--line); padding:7px 14px; border-radius:8px; cursor:pointer; font:inherit; }
+  nav button.on { background:var(--fg); color:var(--bg); }
+  section { display:none; } section.on { display:block; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:14px; }
+  .kpi { background:var(--card); border-radius:10px; padding:12px 14px; }
+  .kpi .l { color:var(--mute); font-size:12px; } .kpi .v { font-size:20px; font-weight:600; margin-top:2px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+  .box { background:var(--card); border-radius:10px; padding:14px; }
+  .box h3 { margin:0 0 8px; font-size:14px; font-weight:600; }
+  .ch { position:relative; height:260px; }
+  .tw { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th,td { padding:7px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child,td:first-child { text-align:left; } th { color:var(--mute); font-weight:500; }
+  .pos { color:var(--pos); } .neg { color:var(--neg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Báo cáo đầu tư chứng khoán</h1>
+  <div class="sub">Cập nhật: <span id="upd"></span> · Lãi lỗ thực hiện tính theo lệnh đã bán (đã trừ phí, thuế); lệnh đang mở là lãi lỗ tạm tính.</div>
+  <div class="kpis" id="kpis"></div>
+
+  <nav id="tabs">
+    <button data-t="time" class="on">Thời gian</button>
+    <button data-t="stock">Cổ phiếu</button>
+    <button data-t="hold">Thời gian nắm giữ</button>
+    <button data-t="detail">Chi tiết lệnh</button>
+  </nav>
+
+  <section id="time" class="on">
+    <div class="grid2">
+      <div class="box"><h3>Lãi lỗ theo tháng (đ)</h3><div class="ch"><canvas id="c_month"></canvas></div></div>
+      <div class="box"><h3>Lãi lỗ lũy kế theo ngày bán (đ)</h3><div class="ch"><canvas id="c_cum"></canvas></div></div>
+      <div class="box"><h3>Số lệnh chốt theo tuần</h3><div class="ch"><canvas id="c_week"></canvas></div></div>
+      <div class="box"><h3>Lãi lỗ theo tuần (đ)</h3><div class="ch"><canvas id="c_weekpnl"></canvas></div></div>
+    </div>
+    <h2>Theo tháng</h2><div class="tw" id="t_month"></div>
+  </section>
+
+  <section id="stock">
+    <div class="grid2">
+      <div class="box"><h3>Lãi lỗ thực hiện theo cổ phiếu (đ)</h3><div class="ch"><canvas id="c_stockpnl"></canvas></div></div>
+      <div class="box"><h3>Tỷ trọng vị thế đang mở</h3><div class="ch"><canvas id="c_alloc"></canvas></div></div>
+    </div>
+    <h2>Tổng hợp theo cổ phiếu</h2><div class="tw" id="t_stock"></div>
+    <h2>Vị thế đang nắm giữ</h2><div class="tw" id="t_open"></div>
+  </section>
+
+  <section id="hold">
+    <div class="grid2">
+      <div class="box"><h3>Số lệnh theo thời gian nắm giữ</h3><div class="ch"><canvas id="c_hcount"></canvas></div></div>
+      <div class="box"><h3>Lãi lỗ theo thời gian nắm giữ (đ)</h3><div class="ch"><canvas id="c_hpnl"></canvas></div></div>
+      <div class="box"><h3>Số ngày nắm giữ vs % lãi lỗ</h3><div class="ch"><canvas id="c_scatter"></canvas></div></div>
+      <div class="box"><h3>Lãi lỗ theo lý do bán (đ)</h3><div class="ch"><canvas id="c_reason"></canvas></div></div>
+    </div>
+    <h2>Theo nhóm thời gian nắm giữ</h2><div class="tw" id="t_hold"></div>
+    <h2>Theo lý do bán</h2><div class="tw" id="t_reason"></div>
+    <h2>Theo loại tài khoản (Cash / T7)</h2><div class="tw" id="t_acc"></div>
+  </section>
+
+  <section id="detail">
+    <h2>Các lệnh đã đóng</h2><div class="tw" id="t_trades"></div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const D = __DATA__;
+const POS = '#1D9E75', NEG = '#D85A30', BLUE = '#378ADD';
+const nf = new Intl.NumberFormat('vi-VN');
+const fmt = n => nf.format(Math.round(n));
+const pc = n => (n > 0 ? '+' : '') + Number(n).toFixed(2) + '%';
+const cl = n => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
+const dmy = s => s.split('-').reverse().join('/');
+const $ = id => document.getElementById(id);
+
+const css = getComputedStyle(document.documentElement);
+Chart.defaults.color = css.getPropertyValue('--mute').trim() || '#888';
+Chart.defaults.borderColor = css.getPropertyValue('--line').trim() || '#ddd';
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.plugins.legend.display = false;
+
+function chart(id, type, labels, data, opts = {}) {
+  const colors = opts.colors || data.map(v => v >= 0 ? POS : NEG);
+  new Chart($(id), {
+    type, data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: opts.line || colors, borderWidth: type === 'line' ? 2 : 0, fill: false, tension: .25, pointRadius: type === 'line' ? 2 : 3 }] },
+    options: { plugins: { legend: { display: !!opts.legend } }, scales: type === 'doughnut' ? {} : { y: { ticks: { callback: v => fmt(v) } } } }
+  });
+}
+function table(id, cols, rows) {
+  $(id).innerHTML = '<table><thead><tr>' + cols.map(c => `<th>${c[0]}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + cols.map(c => `<td>${c[1](r)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+}
+const money = f => r => `<span class="${cl(f(r))}">${fmt(f(r))}</span>`;
+const percent = f => r => `<span class="${cl(f(r))}">${pc(f(r))}</span>`;
+
+// ---- KPI
+const S = D.summary;
+$('upd').textContent = D.updated;
+[
+  ['Lãi lỗ thực hiện', `<span class="${cl(S.pnl)}">${fmt(S.pnl)} đ</span>`],
+  ['Số lệnh đã đóng', S.trades],
+  ['Tỷ lệ thắng', S.win_rate + '%'],
+  ['% lãi lỗ TB / lệnh', `<span class="${cl(S.avg_pct)}">${pc(S.avg_pct)}</span>`],
+  ['Nắm giữ TB', S.avg_hold + ' ngày'],
+  ['Profit factor', S.profit_factor ?? '–'],
+  ['Giá trị vị thế mở', fmt(S.open_value) + ' đ'],
+  ['Lãi lỗ tạm tính', `<span class="${cl(S.open_unrealized)}">${fmt(S.open_unrealized)} đ</span>`],
+].forEach(([l, v]) => $('kpis').insertAdjacentHTML('beforeend', `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`));
+
+// ---- Thời gian
+chart('c_month', 'bar', D.monthly.map(x => x.k), D.monthly.map(x => x.pnl));
+chart('c_cum', 'line', D.daily.map(x => dmy(x.date)), D.daily.map(x => x.cum), { colors: BLUE, line: BLUE });
+chart('c_week', 'bar', D.weekly.map(x => x.k), D.weekly.map(x => x.trades), { colors: BLUE });
+chart('c_weekpnl', 'bar', D.weekly.map(x => x.k), D.weekly.map(x => x.pnl));
+const aggCols = (first) => [
+  [first, r => r.k], ['Số lệnh', r => r.trades], ['Thắng', r => r.wins], ['Tỷ lệ thắng', r => r.win_rate + '%'],
+  ['% TB/lệnh', percent(r => r.avg_pct)], ['Nắm giữ TB (ngày)', r => r.avg_hold], ['Lãi lỗ (đ)', money(r => r.pnl)],
+];
+table('t_month', aggCols('Tháng'), D.monthly);
+
+// ---- Cổ phiếu
+const withPnl = D.stocks.filter(s => s.trades);
+chart('c_stockpnl', 'bar', withPnl.map(s => s.ticker), withPnl.map(s => s.pnl));
+const openS = D.stocks.filter(s => s.open_value > 0);
+chart('c_alloc', 'doughnut', openS.map(s => s.ticker), openS.map(s => s.open_value),
+  { colors: ['#378ADD', '#1D9E75', '#EF9F27', '#D4537E', '#7F77DD', '#639922', '#D85A30'], legend: true });
+table('t_stock', [
+  ['Mã', r => r.ticker], ['Số lệnh', r => r.trades], ['Tỷ lệ thắng', r => r.trades ? r.win_rate + '%' : '–'],
+  ['% TB/lệnh', r => r.trades ? percent(x => x.avg_pct)(r) : '–'], ['Nắm giữ TB (ngày)', r => r.trades ? r.avg_hold : '–'],
+  ['Lãi lỗ thực hiện (đ)', money(r => r.pnl)], ['SL đang giữ', r => fmt(r.open_qty)],
+  ['Giá trị đang giữ (đ)', r => fmt(r.open_value)], ['Lãi lỗ tạm tính (đ)', money(r => r.unrealized)],
+], D.stocks);
+table('t_open', [
+  ['Mã', r => r.ticker], ['Ngày mua', r => dmy(r.buy_date)], ['SL', r => fmt(r.qty)], ['Giá mua', r => fmt(r.buy_price)],
+  ['Giá hiện tại', r => fmt(r.cur_price)], ['Giá trị (đ)', r => fmt(r.market_value)], ['% lãi lỗ', percent(r => r.pnl_pct)],
+  ['Lãi lỗ (đ)', money(r => r.pnl)], ['Đã giữ (ngày)', r => r.hold_days], ['Loại', r => r.account],
+], D.open);
+
+// ---- Thời gian nắm giữ
+chart('c_hcount', 'bar', D.buckets.map(b => b.label), D.buckets.map(b => b.trades), { colors: BLUE });
+chart('c_hpnl', 'bar', D.buckets.map(b => b.label), D.buckets.map(b => b.pnl));
+new Chart($('c_scatter'), {
+  type: 'scatter',
+  data: { datasets: [{ data: D.scatter, backgroundColor: D.scatter.map(p => p.y >= 0 ? POS : NEG) }] },
+  options: { plugins: { tooltip: { callbacks: { label: c => `${c.raw.t}: ${c.raw.x} ngày, ${pc(c.raw.y)}` } } },
+    scales: { x: { title: { display: true, text: 'Số ngày nắm giữ' } }, y: { title: { display: true, text: '% lãi lỗ' } } } }
+});
+chart('c_reason', 'bar', D.reasons.map(x => x.k), D.reasons.map(x => x.pnl));
+table('t_hold', aggCols('Nhóm'), D.buckets.map(b => ({ ...b, k: b.label })));
+table('t_reason', aggCols('Lý do bán'), D.reasons);
+table('t_acc', aggCols('Loại'), D.accounts);
+
+// ---- Chi tiết
+table('t_trades', [
+  ['Mã', r => r.ticker], ['Ngày mua', r => dmy(r.buy_date)], ['Ngày bán', r => dmy(r.sell_date)], ['SL', r => fmt(r.qty)],
+  ['Giá mua', r => fmt(r.buy_price)], ['Giá bán', r => fmt(r.sell_price)], ['Nắm giữ (ngày)', r => r.hold_days],
+  ['% lãi lỗ', percent(r => r.pnl_pct)], ['Lãi lỗ (đ)', money(r => r.pnl)], ['Lý do bán', r => r.reason], ['Loại', r => r.account],
+], [...D.trades].reverse());
+
+// ---- Tabs
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#tabs button,section').forEach(e => e.classList.remove('on'));
+  b.classList.add('on'); $(b.dataset.t).classList.add('on');
+});
+</script>
+</body>
+</html>
